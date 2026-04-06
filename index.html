@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AirWatch - Air Quality Awareness Dashboard</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="site-header">
+      <div class="brand">
+        <div class="brand-mark">AQ</div>
+        <div class="brand-wordmark">
+          <span class="brand-air">AIR</span><span class="brand-watch">WATCH</span>
+        </div>
+      </div>
+
+      <nav class="site-nav" aria-label="Section navigation">
+        <a href="#metrics-section">Metrics</a>
+        <a href="#trends-section">Trends</a>
+        <a href="#health-section">Health</a>
+        <a href="#forecast-section">Forecast</a>
+        <a href="#protection-section">Protection</a>
+      </nav>
+
+      <button id="refresh-button" class="live-pill" type="button">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span>Live - Updated now</span>
+      </button>
+    </header>
+
+    <p id="last-updated" class="last-updated">Last Updated: --</p>
+
+    <main class="dashboard">
+      <section id="metrics-section" class="section-card hero-card">
+        <div class="hero-top">
+          <div class="hero-copy">
+            <p class="section-kicker">Real-time air quality monitoring</p>
+            <h1 class="hero-title">
+              <span>Air</span>
+              <strong>Quality</strong>
+              <span>Index</span>
+            </h1>
+            <p class="hero-description">
+              Live pollution data, health impacts, and practical protection guidance for major Indian cities.
+            </p>
+          </div>
+
+          <div class="hero-controls">
+            <p class="hero-controls-label">Select City</p>
+            <div id="city-tabs" class="city-tabs"></div>
+          </div>
+        </div>
+
+        <div class="hero-grid">
+          <div id="hero-live-panel" class="hero-live-panel"></div>
+          <div id="weather-panel" class="weather-panel"></div>
+        </div>
+      </section>
+
+      <section class="section-card">
+        <div class="panel-heading compact-heading">
+          <div>
+            <p class="section-kicker">Pollutant snapshot</p>
+            <h2>Current Levels</h2>
+          </div>
+          <p class="panel-note">Compared with WHO 24-hour guidance</p>
+        </div>
+        <div id="pollutant-metrics" class="metric-strip"></div>
+      </section>
+
+      <section id="trends-section" class="panel-grid">
+        <article class="section-card">
+          <div class="panel-heading">
+            <div>
+              <h2>24-hour AQI trend</h2>
+              <p class="panel-subtitle">Hourly air quality movement for the selected city</p>
+            </div>
+          </div>
+          <div id="hourly-chart" class="chart-host chart-host-tall" aria-label="Hourly AQI chart"></div>
+        </article>
+
+        <article class="section-card">
+          <div class="panel-heading">
+            <div>
+              <h2>Weekly overview</h2>
+              <p class="panel-subtitle">Daily AQI over the past 7 days</p>
+            </div>
+          </div>
+          <div id="weekly-chart" class="chart-host chart-host-tall" aria-label="Weekly AQI chart"></div>
+        </article>
+      </section>
+
+      <section class="section-card">
+        <div class="panel-heading">
+          <div>
+            <h2>Current levels vs WHO safe limits</h2>
+            <p class="panel-subtitle">Comparison of each pollutant against WHO 24-hour guidelines</p>
+          </div>
+        </div>
+        <div id="who-chart" class="chart-host chart-host-medium" aria-label="WHO comparison chart"></div>
+      </section>
+
+      <section class="section-card">
+        <div class="panel-heading split-heading">
+          <div>
+            <p class="section-kicker">AQI scale reference</p>
+            <h2>Air Quality Scale</h2>
+          </div>
+          <p id="current-band-label" class="current-band-label">Current: --</p>
+        </div>
+        <div id="aqi-scale-panel" class="aqi-scale-panel"></div>
+      </section>
+
+      <section class="section-card">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Pollutant detail</p>
+            <h2>Exposure Summary</h2>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Pollutant</th>
+                <th>Current level</th>
+                <th>WHO 24H limit</th>
+                <th>Status</th>
+                <th>% of limit</th>
+                <th>Primary source</th>
+              </tr>
+            </thead>
+            <tbody id="pollutant-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="section-card">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">City comparison - today's AQI</p>
+            <h2>Major City Snapshot</h2>
+          </div>
+        </div>
+        <div id="city-comparison-grid" class="city-comparison-grid"></div>
+      </section>
+
+      <section id="health-section" class="section-group">
+        <div class="section-group-header">
+          <p class="section-kicker">Health impact guide</p>
+          <h2>Who Is Most Affected</h2>
+        </div>
+        <div id="health-impact-grid" class="info-grid"></div>
+      </section>
+
+      <section id="forecast-section" class="section-card">
+        <div class="panel-heading split-heading">
+          <div>
+            <p class="section-kicker">7-day AQI forecast</p>
+            <h2>Model-based projection</h2>
+          </div>
+          <p class="panel-note">Outlook for the selected city</p>
+        </div>
+        <div id="forecast-grid" class="forecast-grid"></div>
+      </section>
+
+      <section id="protection-section" class="section-group">
+        <div class="section-group-header">
+          <p class="section-kicker">Protection guide</p>
+          <h2>Practical Daily Actions</h2>
+        </div>
+        <div id="protection-grid" class="info-grid"></div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <p class="footer-copy">Copyright 2026 AirWatch - Air Quality Awareness Platform - Data sources: CPCB, WHO, IQAir</p>
+      <div class="footer-links">
+        <a href="#metrics-section">About</a>
+        <a href="#trends-section">Methodology</a>
+        <a href="#forecast-section">Forecast</a>
+        <a href="#protection-section">Contact</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>
