@@ -4,9 +4,9 @@ This is a simplified dashboard project built with HTML, CSS, and JavaScript.
 
 ## Step-by-step workflow
 
-1. Request live air-quality data from the Open-Meteo Air Quality API for each tracked city.
+1. Request live air-quality pollutant data from the Open-Meteo Air Quality API for each tracked city.
 2. Request current weather support data from the Open-Meteo Forecast API.
-3. Convert the API responses into AQI trends, pollutant cards, forecast values, and comparison summaries.
+3. Convert pollutant concentrations into Indian AQI values using CPCB AQI breakpoints.
 4. Fall back to the local sample CSV in `data/aqi_data.csv` if live requests fail.
 5. Show the results using summary cards, trend charts, the AQI scale, and the pollutant table.
 6. Add AQI health descriptions so users understand the meaning of each level.
@@ -15,7 +15,7 @@ This is a simplified dashboard project built with HTML, CSS, and JavaScript.
 
 - `index.html` builds the page structure.
 - `styles.css` controls the visual design and responsive layout.
-- `script.js` loads live AQI data, processes it, and renders the dashboard.
+- `script.js` loads live pollutant data, computes Indian AQI values, and renders the dashboard.
 - `data/aqi_data.csv` contains sample fallback data used when live API requests are unavailable.
 
 ## Run locally

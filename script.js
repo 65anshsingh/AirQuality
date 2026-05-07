@@ -57,13 +57,6 @@ const AIR_QUALITY_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quali
 const WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
 
 const AIR_QUALITY_FIELDS = [
-  "us_aqi",
-  "us_aqi_pm2_5",
-  "us_aqi_pm10",
-  "us_aqi_nitrogen_dioxide",
-  "us_aqi_ozone",
-  "us_aqi_sulphur_dioxide",
-  "us_aqi_carbon_monoxide",
   "pm2_5",
   "pm10",
   "carbon_monoxide",
@@ -87,47 +80,47 @@ const AQI_LEVELS = [
     label: "Good",
     shortLabel: "Good",
     color: "#2d8f68",
-    description: "Air quality is satisfactory and the risk to most people is low.",
+    description: "Air quality is clean and the health risk is minimal for most people.",
     advice: "Outdoor activities are generally safe and natural ventilation is fine."
   },
   {
     max: 100,
-    label: "Moderate",
-    shortLabel: "Moderate",
+    label: "Satisfactory",
+    shortLabel: "Satisfactory",
     color: "#cc8a00",
-    description: "Air quality is acceptable, but sensitive groups may feel discomfort.",
+    description: "Air quality is acceptable, though sensitive people may feel mild discomfort.",
     advice: "Take short breaks from prolonged outdoor activity if you have breathing issues."
   },
   {
-    max: 150,
-    label: "Unhealthy for Sensitive Groups",
-    shortLabel: "Sensitive",
+    max: 200,
+    label: "Moderately Polluted",
+    shortLabel: "Moderate",
     color: "#f1a64a",
-    description: "Children, older adults, and people with asthma should be more careful.",
+    description: "Breathing discomfort can begin for people with asthma, heart disease, and children.",
     advice: "Limit long outdoor exercise and use a mask near high traffic corridors."
   },
   {
-    max: 200,
-    label: "Unhealthy",
-    shortLabel: "Unhealthy",
+    max: 300,
+    label: "Poor",
+    shortLabel: "Poor",
     color: "#d65a31",
-    description: "Health effects become more likely for the general public.",
+    description: "Air pollution can affect most people and trigger irritation, coughing, and fatigue.",
     advice: "Avoid heavy outdoor exertion and shift workouts indoors when possible."
   },
   {
-    max: 300,
-    label: "Very Unhealthy",
-    shortLabel: "Very",
+    max: 400,
+    label: "Very Poor",
+    shortLabel: "Very Poor",
     color: "#9d2f7f",
-    description: "Health warnings of emergency conditions. Everyone can be affected.",
+    description: "This air can worsen respiratory and cardiac illness and affect healthy adults too.",
     advice: "Stay indoors when possible, keep windows shut, and wear a high-filtration mask outside."
   },
   {
     max: Infinity,
-    label: "Hazardous",
-    shortLabel: "Hazardous",
+    label: "Severe",
+    shortLabel: "Severe",
     color: "#7b1f27",
-    description: "This level creates serious health risks for the whole population.",
+    description: "Emergency-level pollution. Even short exposure can affect healthy people.",
     advice: "Avoid all unnecessary outdoor exposure and use indoor air cleaning if available."
   }
 ];
@@ -135,47 +128,46 @@ const AQI_LEVELS = [
 const POLLUTANT_META = {
   pm25: {
     apiKey: "pm2_5",
-    componentKey: "us_aqi_pm2_5",
     label: "PM2.5",
     description: "Fine particles (< 2.5 um)",
     limit: 35,
     unit: "ug/m3",
     displayDecimals: 0,
+    averageHours: 24,
     source: "Vehicle exhaust, industry, open burning"
   },
   pm10: {
     apiKey: "pm10",
-    componentKey: "us_aqi_pm10",
     label: "PM10",
     description: "Coarse particles (< 10 um)",
     limit: 150,
     unit: "ug/m3",
     displayDecimals: 0,
+    averageHours: 24,
     source: "Road dust, construction, soil disturbance"
   },
   no2: {
     apiKey: "nitrogen_dioxide",
-    componentKey: "us_aqi_nitrogen_dioxide",
     label: "NO2",
     description: "Nitrogen dioxide",
     limit: 40,
     unit: "ug/m3",
     displayDecimals: 0,
+    averageHours: 24,
     source: "Traffic, generators, thermal power plants"
   },
   o3: {
     apiKey: "ozone",
-    componentKey: "us_aqi_ozone",
     label: "Ozone",
     description: "Ground-level ozone",
     limit: 100,
     unit: "ug/m3",
     displayDecimals: 0,
+    averageHours: 8,
     source: "Sunlight-driven reaction of NOx and VOCs"
   },
   co: {
     apiKey: "carbon_monoxide",
-    componentKey: "us_aqi_carbon_monoxide",
     label: "CO",
     description: "Carbon monoxide",
     limit: 10,
@@ -184,18 +176,70 @@ const POLLUTANT_META = {
     chartLabel: "CO x10",
     chartMultiplier: 10,
     transform: (value) => value / 1000,
+    averageHours: 8,
     source: "Incomplete combustion, vehicles, diesel sets"
   },
   so2: {
     apiKey: "sulphur_dioxide",
-    componentKey: "us_aqi_sulphur_dioxide",
     label: "SO2",
     description: "Sulfur dioxide",
     limit: 20,
     unit: "ug/m3",
     displayDecimals: 0,
+    averageHours: 24,
     source: "Coal combustion, refineries, industrial fuel"
   }
+};
+
+const INDIA_AQI_BREAKPOINTS = {
+  pm25: [
+    { aqiLow: 0, aqiHigh: 50, concLow: 0, concHigh: 30 },
+    { aqiLow: 51, aqiHigh: 100, concLow: 31, concHigh: 60 },
+    { aqiLow: 101, aqiHigh: 200, concLow: 61, concHigh: 90 },
+    { aqiLow: 201, aqiHigh: 300, concLow: 91, concHigh: 120 },
+    { aqiLow: 301, aqiHigh: 400, concLow: 121, concHigh: 250 },
+    { aqiLow: 401, aqiHigh: 500, concLow: 251, concHigh: Infinity }
+  ],
+  pm10: [
+    { aqiLow: 0, aqiHigh: 50, concLow: 0, concHigh: 50 },
+    { aqiLow: 51, aqiHigh: 100, concLow: 51, concHigh: 100 },
+    { aqiLow: 101, aqiHigh: 200, concLow: 101, concHigh: 250 },
+    { aqiLow: 201, aqiHigh: 300, concLow: 251, concHigh: 350 },
+    { aqiLow: 301, aqiHigh: 400, concLow: 351, concHigh: 430 },
+    { aqiLow: 401, aqiHigh: 500, concLow: 431, concHigh: Infinity }
+  ],
+  no2: [
+    { aqiLow: 0, aqiHigh: 50, concLow: 0, concHigh: 40 },
+    { aqiLow: 51, aqiHigh: 100, concLow: 41, concHigh: 80 },
+    { aqiLow: 101, aqiHigh: 200, concLow: 81, concHigh: 180 },
+    { aqiLow: 201, aqiHigh: 300, concLow: 181, concHigh: 280 },
+    { aqiLow: 301, aqiHigh: 400, concLow: 281, concHigh: 400 },
+    { aqiLow: 401, aqiHigh: 500, concLow: 401, concHigh: Infinity }
+  ],
+  o3: [
+    { aqiLow: 0, aqiHigh: 50, concLow: 0, concHigh: 50 },
+    { aqiLow: 51, aqiHigh: 100, concLow: 51, concHigh: 100 },
+    { aqiLow: 101, aqiHigh: 200, concLow: 101, concHigh: 168 },
+    { aqiLow: 201, aqiHigh: 300, concLow: 169, concHigh: 208 },
+    { aqiLow: 301, aqiHigh: 400, concLow: 209, concHigh: 748 },
+    { aqiLow: 401, aqiHigh: 500, concLow: 749, concHigh: Infinity }
+  ],
+  co: [
+    { aqiLow: 0, aqiHigh: 50, concLow: 0, concHigh: 1.0 },
+    { aqiLow: 51, aqiHigh: 100, concLow: 1.1, concHigh: 2.0 },
+    { aqiLow: 101, aqiHigh: 200, concLow: 2.1, concHigh: 10.0 },
+    { aqiLow: 201, aqiHigh: 300, concLow: 10.1, concHigh: 17.0 },
+    { aqiLow: 301, aqiHigh: 400, concLow: 17.1, concHigh: 34.0 },
+    { aqiLow: 401, aqiHigh: 500, concLow: 34.1, concHigh: Infinity }
+  ],
+  so2: [
+    { aqiLow: 0, aqiHigh: 50, concLow: 0, concHigh: 40 },
+    { aqiLow: 51, aqiHigh: 100, concLow: 41, concHigh: 80 },
+    { aqiLow: 101, aqiHigh: 200, concLow: 81, concHigh: 380 },
+    { aqiLow: 201, aqiHigh: 300, concLow: 381, concHigh: 800 },
+    { aqiLow: 301, aqiHigh: 400, concLow: 801, concHigh: 1600 },
+    { aqiLow: 401, aqiHigh: 500, concLow: 1601, concHigh: Infinity }
+  ]
 };
 
 const HEALTH_IMPACTS = [
@@ -570,6 +614,74 @@ function buildDailyAverageEntries(times, values) {
     .map(([date, samples]) => ({ date, value: average(samples) }));
 }
 
+function getTrailingAverage(key, values, endIndex) {
+  const meta = POLLUTANT_META[key];
+  const startIndex = Math.max(0, endIndex - meta.averageHours + 1);
+  const samples = [];
+
+  for (let index = startIndex; index <= endIndex; index += 1) {
+    const normalized = normalizePollutantValue(key, values[index]);
+    if (normalized != null) {
+      samples.push(normalized);
+    }
+  }
+
+  if (!samples.length) {
+    return null;
+  }
+
+  return round(average(samples), meta.displayDecimals || 0);
+}
+
+function computeIndiaSubIndex(key, concentration) {
+  if (!Number.isFinite(concentration)) {
+    return null;
+  }
+
+  const breakpoints = INDIA_AQI_BREAKPOINTS[key] || [];
+
+  for (const range of breakpoints) {
+    if (concentration <= range.concHigh || !Number.isFinite(range.concHigh)) {
+      if (!Number.isFinite(range.concHigh)) {
+        return 500;
+      }
+
+      const aqiSpan = range.aqiHigh - range.aqiLow;
+      const concentrationSpan = range.concHigh - range.concLow || 1;
+      const subIndex = ((aqiSpan / concentrationSpan) * (concentration - range.concLow)) + range.aqiLow;
+      return Math.max(range.aqiLow, Math.min(500, Math.round(subIndex)));
+    }
+  }
+
+  return null;
+}
+
+function computeIndiaAqi(averages) {
+  const subIndices = {};
+
+  Object.keys(POLLUTANT_META).forEach((key) => {
+    const subIndex = computeIndiaSubIndex(key, averages[key]);
+    if (Number.isFinite(subIndex)) {
+      subIndices[key] = subIndex;
+    }
+  });
+
+  const ranked = Object.entries(subIndices).sort((left, right) => right[1] - left[1]);
+  if (!ranked.length) {
+    return {
+      aqi: null,
+      dominantPollutantKey: null,
+      subIndices
+    };
+  }
+
+  return {
+    aqi: ranked[0][1],
+    dominantPollutantKey: ranked[0][0],
+    subIndices
+  };
+}
+
 function findCurrentIndex(times, currentTime) {
   if (!times.length || !currentTime) {
     return times.length - 1;
@@ -588,24 +700,56 @@ function findCurrentIndex(times, currentTime) {
   return currentIndex;
 }
 
-function buildLiveHourlyTrend(times, values, currentTime, fallbackTrend) {
-  if (!times.length || !values.length) {
+function buildIndiaAqiSeries(hourly) {
+  const times = hourly.time || [];
+
+  if (!times.length) {
+    return [];
+  }
+
+  return times.map((time, index) => {
+    const averages = {};
+
+    Object.keys(POLLUTANT_META).forEach((key) => {
+      averages[key] = getTrailingAverage(key, hourly[POLLUTANT_META[key].apiKey] || [], index);
+    });
+
+    const aqiData = computeIndiaAqi(averages);
+    if (!Number.isFinite(aqiData.aqi)) {
+      return null;
+    }
+
+    return {
+      time,
+      date: time.slice(0, 10),
+      aqi: aqiData.aqi,
+      dominantPollutantKey: aqiData.dominantPollutantKey,
+      subIndices: aqiData.subIndices
+    };
+  }).filter(Boolean);
+}
+
+function buildLiveHourlyTrend(series, currentTime, fallbackTrend) {
+  if (!series.length) {
     return fallbackTrend;
   }
 
-  const currentIndex = findCurrentIndex(times, currentTime);
+  const currentIndex = findCurrentIndex(
+    series.map((point) => point.time),
+    currentTime
+  );
   const windowStart = Math.max(0, currentIndex - 23);
   const points = [];
 
   for (let index = windowStart; index <= currentIndex; index += 1) {
-    const numericValue = Number(values[index]);
-    if (!Number.isFinite(numericValue)) {
+    const point = series[index];
+    if (!point || !Number.isFinite(point.aqi)) {
       continue;
     }
 
     points.push({
-      label: formatHourLabel(times[index]),
-      value: Math.round(numericValue)
+      label: formatHourLabel(point.time),
+      value: Math.round(point.aqi)
     });
   }
 
@@ -619,8 +763,11 @@ function buildLiveHourlyTrend(times, values, currentTime, fallbackTrend) {
   };
 }
 
-function buildWeeklyRecords(times, values, currentDate, fallbackRecords) {
-  const dailyEntries = buildDailyAverageEntries(times, values)
+function buildWeeklyRecords(series, currentDate, fallbackRecords) {
+  const recent = buildDailyAverageEntries(
+    series.map((point) => point.time),
+    series.map((point) => point.aqi)
+  )
     .filter((entry) => entry.date <= currentDate)
     .slice(-7)
     .map((entry) => ({
@@ -628,11 +775,14 @@ function buildWeeklyRecords(times, values, currentDate, fallbackRecords) {
       aqi: Math.round(entry.value)
     }));
 
-  return dailyEntries.length ? dailyEntries : fallbackRecords;
+  return recent.length ? recent : fallbackRecords;
 }
 
-function buildForecastRecords(times, values, currentDate, fallbackRecords) {
-  const dailyEntries = buildDailyAverageEntries(times, values)
+function buildForecastRecords(series, currentDate, fallbackRecords) {
+  const dailyEntries = buildDailyAverageEntries(
+    series.map((point) => point.time),
+    series.map((point) => point.aqi)
+  )
     .filter((entry) => entry.date >= currentDate)
     .slice(0, 7)
     .map((entry) => ({
@@ -685,30 +835,11 @@ function getPollutantKeyByLabel(label) {
   return Object.entries(POLLUTANT_META).find(([, meta]) => meta.label === label)?.[0] || "pm25";
 }
 
-function getPrimaryPollutantKey(current, pollutants, fallbackLabel) {
-  const componentRanking = Object.entries(POLLUTANT_META)
-    .map(([key, meta]) => ({
-      key,
-      score: Number(current?.[meta.componentKey])
-    }))
-    .filter((item) => Number.isFinite(item.score))
-    .sort((left, right) => right.score - left.score);
-
-  if (componentRanking.length) {
-    return componentRanking[0].key;
+function getPrimaryPollutantKey(subIndices, fallbackLabel) {
+  const ranked = Object.entries(subIndices || {}).sort((left, right) => right[1] - left[1]);
+  if (ranked.length) {
+    return ranked[0][0];
   }
-
-  const ratioRanking = Object.entries(POLLUTANT_META)
-    .map(([key, meta]) => ({
-      key,
-      score: (pollutants[key] || 0) / meta.limit
-    }))
-    .sort((left, right) => right.score - left.score);
-
-  if (ratioRanking.length) {
-    return ratioRanking[0].key;
-  }
-
   return getPollutantKeyByLabel(fallbackLabel);
 }
 
@@ -803,7 +934,7 @@ function buildFallbackDashboardData(text) {
       aqi: cityData[city].currentAqi
     })),
     lastUpdated: `${dates[dates.length - 1]}T12:00`,
-    sourceSummary: "Sample fallback data",
+    sourceSummary: "Sample fallback data on the Indian AQI scale",
     liveCount: 0,
     totalCities: CITY_ORDER.length
   };
@@ -824,8 +955,14 @@ async function fetchCityLiveData(city, fallbackCity) {
   const weatherResponse = weatherResult.status === "fulfilled" ? weatherResult.value : null;
   const current = airResponse.current || {};
   const hourly = airResponse.hourly || {};
+  const aqiSeries = buildIndiaAqiSeries(hourly);
   const currentTime = current.time || fallbackCity.currentTime;
   const currentDate = currentTime.slice(0, 10);
+  const currentAqiIndex = findCurrentIndex(
+    aqiSeries.map((point) => point.time),
+    currentTime
+  );
+  const currentAqiPoint = aqiSeries[currentAqiIndex] || null;
   const pollutants = {};
   const pollutantPrevious = {};
 
@@ -843,10 +980,13 @@ async function fetchCityLiveData(city, fallbackCity) {
     );
   });
 
-  const currentAqi = Number.isFinite(Number(current.us_aqi))
-    ? Math.round(Number(current.us_aqi))
+  const currentAqi = Number.isFinite(currentAqiPoint?.aqi)
+    ? Math.round(currentAqiPoint.aqi)
     : fallbackCity.currentAqi;
-  const primaryPollutantKey = getPrimaryPollutantKey(current, pollutants, fallbackCity.primaryPollutant);
+  const primaryPollutantKey = getPrimaryPollutantKey(
+    currentAqiPoint?.subIndices,
+    fallbackCity.primaryPollutant
+  );
   const level = getAqiLevel(currentAqi);
   const weather = buildWeatherSnapshot(weatherResponse, fallbackCity);
 
@@ -865,20 +1005,17 @@ async function fetchCityLiveData(city, fallbackCity) {
     pollutants,
     pollutantPrevious,
     weeklyRecords: buildWeeklyRecords(
-      hourly.time || [],
-      hourly.us_aqi || [],
+      aqiSeries,
       currentDate,
       fallbackCity.weeklyRecords
     ),
     hourlyTrend: buildLiveHourlyTrend(
-      hourly.time || [],
-      hourly.us_aqi || [],
+      aqiSeries,
       currentTime,
       fallbackCity.hourlyTrend
     ),
     forecastRecords: buildForecastRecords(
-      hourly.time || [],
-      hourly.us_aqi || [],
+      aqiSeries,
       currentDate,
       fallbackCity.forecastRecords
     ),
@@ -913,9 +1050,9 @@ async function buildDashboardData(fallbackData) {
 
   let sourceSummary = "Sample fallback data";
   if (liveCount === CITY_ORDER.length) {
-    sourceSummary = "Live AQI via Open-Meteo";
+    sourceSummary = "Approx Indian AQI computed from Open-Meteo pollutant data";
   } else if (liveCount > 0) {
-    sourceSummary = `Live AQI for ${liveCount}/${CITY_ORDER.length} cities - sample fallback for the rest`;
+    sourceSummary = `Approx Indian AQI for ${liveCount}/${CITY_ORDER.length} cities - sample fallback for the rest`;
   }
 
   return {
@@ -936,7 +1073,7 @@ function getSelectedSnapshot() {
   const level = getAqiLevel(details.currentAqi);
   const pollutants = Object.entries(POLLUTANT_META).map(([key, meta]) => {
     const current = details.pollutants[key];
-    const previous = details.pollutantPrevious[key] || current;
+    const previous = details.pollutantPrevious[key] ?? current;
     const change = previous ? ((current - previous) / previous) * 100 : 0;
     const percent = Math.round((current / meta.limit) * 100);
     const status = getLimitStatus(percent);
@@ -1273,18 +1410,18 @@ function renderScale(snapshot) {
         <span>0</span>
         <span>50</span>
         <span>100</span>
-        <span>150</span>
         <span>200</span>
         <span>300</span>
+        <span>400</span>
         <span>500</span>
       </div>
       <div class="scale-legend">
         <span class="scale-legend-item"><span class="scale-swatch" style="background:#2d8f68;"></span>Good (0-50)</span>
-        <span class="scale-legend-item"><span class="scale-swatch" style="background:#cc8a00;"></span>Moderate (51-100)</span>
-        <span class="scale-legend-item"><span class="scale-swatch" style="background:#f1a64a;"></span>Sensitive (101-150)</span>
-        <span class="scale-legend-item"><span class="scale-swatch" style="background:#d65a31;"></span>Unhealthy (151-200)</span>
-        <span class="scale-legend-item"><span class="scale-swatch" style="background:#9d2f7f;"></span>Very unhealthy (201-300)</span>
-        <span class="scale-legend-item"><span class="scale-swatch" style="background:#7b1f27;"></span>Hazardous (301-500)</span>
+        <span class="scale-legend-item"><span class="scale-swatch" style="background:#cc8a00;"></span>Satisfactory (51-100)</span>
+        <span class="scale-legend-item"><span class="scale-swatch" style="background:#f1a64a;"></span>Moderately polluted (101-200)</span>
+        <span class="scale-legend-item"><span class="scale-swatch" style="background:#d65a31;"></span>Poor (201-300)</span>
+        <span class="scale-legend-item"><span class="scale-swatch" style="background:#9d2f7f;"></span>Very poor (301-400)</span>
+        <span class="scale-legend-item"><span class="scale-swatch" style="background:#7b1f27;"></span>Severe (401-500)</span>
       </div>
     </div>
   `;
@@ -1342,7 +1479,7 @@ function renderForecast(snapshot) {
     return `
       <article class="forecast-card ${isPeak ? "peak" : ""}">
         <span class="forecast-day">${formatDay(record.date).toUpperCase()}</span>
-        <span class="forecast-icon">${record.aqi >= 300 ? "ALRT" : "AQI"}</span>
+        <span class="forecast-icon">${record.aqi >= 401 ? "ALRT" : "AQI"}</span>
         <p class="forecast-value" style="color:${level.color};">${record.aqi}</p>
         <span class="forecast-label">${level.shortLabel}</span>
       </article>
@@ -1388,7 +1525,7 @@ async function refreshData() {
     console.error("Live AQI refresh failed. Showing fallback data instead.", error);
     state.data = {
       ...fallbackData,
-      sourceSummary: "Live API unavailable - showing sample fallback data"
+      sourceSummary: "Live API unavailable - showing sample fallback data on the Indian AQI scale"
     };
   }
 
