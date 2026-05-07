@@ -44,6 +44,43 @@ const FALLBACK_CSV = `date,city,aqi
 
 const CITY_ORDER = ["Delhi", "Mumbai", "Kolkata", "Bangalore", "Jalandhar", "Chennai"];
 
+const CITY_CONFIG = {
+  Delhi: { latitude: "28.6139", longitude: "77.2090" },
+  Mumbai: { latitude: "19.0760", longitude: "72.8777" },
+  Kolkata: { latitude: "22.5726", longitude: "88.3639" },
+  Bangalore: { latitude: "12.9716", longitude: "77.5946" },
+  Jalandhar: { latitude: "31.3260", longitude: "75.5762" },
+  Chennai: { latitude: "13.0827", longitude: "80.2707" }
+};
+
+const AIR_QUALITY_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
+
+const AIR_QUALITY_FIELDS = [
+  "us_aqi",
+  "us_aqi_pm2_5",
+  "us_aqi_pm10",
+  "us_aqi_nitrogen_dioxide",
+  "us_aqi_ozone",
+  "us_aqi_sulphur_dioxide",
+  "us_aqi_carbon_monoxide",
+  "pm2_5",
+  "pm10",
+  "carbon_monoxide",
+  "nitrogen_dioxide",
+  "sulphur_dioxide",
+  "ozone"
+];
+
+const WEATHER_CURRENT_FIELDS = [
+  "temperature_2m",
+  "relative_humidity_2m",
+  "wind_speed_10m",
+  "weather_code"
+];
+
+const WEATHER_DAILY_FIELDS = ["uv_index_max"];
+
 const AQI_LEVELS = [
   {
     max: 50,
@@ -97,47 +134,66 @@ const AQI_LEVELS = [
 
 const POLLUTANT_META = {
   pm25: {
+    apiKey: "pm2_5",
+    componentKey: "us_aqi_pm2_5",
     label: "PM2.5",
     description: "Fine particles (< 2.5 um)",
     limit: 35,
     unit: "ug/m3",
+    displayDecimals: 0,
     source: "Vehicle exhaust, industry, open burning"
   },
   pm10: {
+    apiKey: "pm10",
+    componentKey: "us_aqi_pm10",
     label: "PM10",
     description: "Coarse particles (< 10 um)",
     limit: 150,
     unit: "ug/m3",
+    displayDecimals: 0,
     source: "Road dust, construction, soil disturbance"
   },
   no2: {
+    apiKey: "nitrogen_dioxide",
+    componentKey: "us_aqi_nitrogen_dioxide",
     label: "NO2",
     description: "Nitrogen dioxide",
     limit: 40,
     unit: "ug/m3",
+    displayDecimals: 0,
     source: "Traffic, generators, thermal power plants"
   },
   o3: {
+    apiKey: "ozone",
+    componentKey: "us_aqi_ozone",
     label: "Ozone",
     description: "Ground-level ozone",
     limit: 100,
     unit: "ug/m3",
+    displayDecimals: 0,
     source: "Sunlight-driven reaction of NOx and VOCs"
   },
   co: {
+    apiKey: "carbon_monoxide",
+    componentKey: "us_aqi_carbon_monoxide",
     label: "CO",
     description: "Carbon monoxide",
     limit: 10,
     unit: "mg/m3",
+    displayDecimals: 1,
     chartLabel: "CO x10",
     chartMultiplier: 10,
+    transform: (value) => value / 1000,
     source: "Incomplete combustion, vehicles, diesel sets"
   },
   so2: {
+    apiKey: "sulphur_dioxide",
+    componentKey: "us_aqi_sulphur_dioxide",
     label: "SO2",
     description: "Sulfur dioxide",
     limit: 20,
     unit: "ug/m3",
+    displayDecimals: 0,
     source: "Coal combustion, refineries, industrial fuel"
   }
 };
@@ -246,7 +302,7 @@ const PROTECTION_TIPS = [
   }
 ];
 
-const CITY_DETAILS = {
+const FALLBACK_CITY_DETAILS = {
   Delhi: {
     condition: "Dust haze",
     temp: 28,
@@ -330,13 +386,12 @@ const HOURLY_LABELS = [
 
 const state = {
   selectedCity: "Delhi",
-  csvText: FALLBACK_CSV,
   data: null
 };
 
-async function loadCsvText() {
+async function loadFallbackCsvText() {
   try {
-    const response = await fetch("data/aqi_data.csv");
+    const response = await fetch("data/aqi_data.csv", { cache: "no-store" });
     if (!response.ok) {
       throw new Error("CSV request failed");
     }
@@ -344,6 +399,14 @@ async function loadCsvText() {
   } catch (error) {
     return FALLBACK_CSV;
   }
+}
+
+async function fetchJson(url) {
+  const response = await fetch(url, { cache: "no-store" });
+  if (!response.ok) {
+    throw new Error(`Request failed with status ${response.status}`);
+  }
+  return response.json();
 }
 
 function parseCsv(text) {
@@ -367,43 +430,23 @@ function parseCsv(text) {
 }
 
 function getAqiLevel(aqi) {
-  return AQI_LEVELS.find((level) => aqi <= level.max);
+  return AQI_LEVELS.find((level) => aqi <= level.max) || AQI_LEVELS[AQI_LEVELS.length - 1];
 }
 
 function getUniqueDates(records) {
   return [...new Set(records.map((record) => record.date))].sort();
 }
 
-function buildDashboardData(records) {
-  const dates = getUniqueDates(records);
-  const recordMap = new Map(records.map((record) => [`${record.city}|${record.date}`, record]));
-  const citySeries = {};
-
-  CITY_ORDER.forEach((city) => {
-    citySeries[city] = dates
-      .map((date) => recordMap.get(`${city}|${date}`))
-      .filter(Boolean);
-  });
-
-  const latestDate = dates[dates.length - 1];
-  const latestRecords = CITY_ORDER
-    .map((city) => recordMap.get(`${city}|${latestDate}`))
-    .filter(Boolean);
-
-  return {
-    dates,
-    latestDate,
-    citySeries,
-    latestRecords
-  };
+function round(value, decimals = 0) {
+  const factor = 10 ** decimals;
+  return Math.round(value * factor) / factor;
 }
 
-function pad(value) {
-  return String(value).padStart(2, "0");
-}
-
-function formatLastUpdated(date) {
-  return `Last Updated: ${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())} (Local Time)`;
+function average(values) {
+  if (!values.length) {
+    return 0;
+  }
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function formatDay(dateString) {
@@ -411,9 +454,36 @@ function formatDay(dateString) {
   return date.toLocaleDateString("en-IN", { weekday: "short" });
 }
 
-function round(value, decimals = 0) {
-  const factor = 10 ** decimals;
-  return Math.round(value * factor) / factor;
+function formatDateTime(dateTime) {
+  if (!dateTime) {
+    return "--";
+  }
+
+  const [datePart, timePart = "00:00"] = dateTime.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hours, minutes] = timePart.split(":").map(Number);
+  const localDate = new Date(year, month - 1, day, hours || 0, minutes || 0);
+
+  return localDate.toLocaleString("en-IN", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true
+  });
+}
+
+function formatHourLabel(dateTime) {
+  const [, timePart = "00:00"] = dateTime.split("T");
+  const hours = Number(timePart.split(":")[0]);
+  const hour12 = hours % 12 || 12;
+  const suffix = hours < 12 ? "am" : "pm";
+  return `${hour12}${suffix}`;
+}
+
+function formatValue(value, decimals = 0) {
+  return Number(value).toFixed(decimals);
 }
 
 function getLimitStatus(percent) {
@@ -429,24 +499,444 @@ function getLimitStatus(percent) {
   return { label: "Hazardous", color: "#9d2f7f", bg: "#f4e9f5" };
 }
 
-function buildHourlyTrend(aqi, cityIndex) {
+function buildFallbackHourlyTrend(aqi, cityIndex) {
   return HOURLY_TEMPLATE.map((factor, index) => {
     const modulation = Math.sin((index + 2 + cityIndex) / 2.3) * (5 + cityIndex);
     return Math.max(20, Math.round(aqi * factor + modulation));
   });
 }
 
+function buildAirQualityUrl(config) {
+  const params = new URLSearchParams({
+    latitude: config.latitude,
+    longitude: config.longitude,
+    current: AIR_QUALITY_FIELDS.join(","),
+    hourly: AIR_QUALITY_FIELDS.join(","),
+    past_days: "6",
+    forecast_days: "7",
+    timezone: "auto"
+  });
+
+  return `${AIR_QUALITY_API_URL}?${params.toString()}`;
+}
+
+function buildWeatherUrl(config) {
+  const params = new URLSearchParams({
+    latitude: config.latitude,
+    longitude: config.longitude,
+    current: WEATHER_CURRENT_FIELDS.join(","),
+    daily: WEATHER_DAILY_FIELDS.join(","),
+    timezone: "auto",
+    forecast_days: "1"
+  });
+
+  return `${WEATHER_API_URL}?${params.toString()}`;
+}
+
+function normalizePollutantValue(key, rawValue) {
+  const meta = POLLUTANT_META[key];
+  const numericValue = Number(rawValue);
+
+  if (!Number.isFinite(numericValue)) {
+    return null;
+  }
+
+  const transformedValue = typeof meta.transform === "function"
+    ? meta.transform(numericValue)
+    : numericValue;
+
+  return round(transformedValue, meta.displayDecimals || 0);
+}
+
+function buildDailyAverageEntries(times, values) {
+  const buckets = new Map();
+
+  times.forEach((time, index) => {
+    const numericValue = Number(values[index]);
+
+    if (!time || !Number.isFinite(numericValue)) {
+      return;
+    }
+
+    const date = time.slice(0, 10);
+    if (!buckets.has(date)) {
+      buckets.set(date, []);
+    }
+    buckets.get(date).push(numericValue);
+  });
+
+  return [...buckets.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([date, samples]) => ({ date, value: average(samples) }));
+}
+
+function findCurrentIndex(times, currentTime) {
+  if (!times.length || !currentTime) {
+    return times.length - 1;
+  }
+
+  const target = new Date(currentTime).getTime();
+  let currentIndex = 0;
+
+  times.forEach((time, index) => {
+    const value = new Date(time).getTime();
+    if (Number.isFinite(value) && value <= target) {
+      currentIndex = index;
+    }
+  });
+
+  return currentIndex;
+}
+
+function buildLiveHourlyTrend(times, values, currentTime, fallbackTrend) {
+  if (!times.length || !values.length) {
+    return fallbackTrend;
+  }
+
+  const currentIndex = findCurrentIndex(times, currentTime);
+  const windowStart = Math.max(0, currentIndex - 23);
+  const points = [];
+
+  for (let index = windowStart; index <= currentIndex; index += 1) {
+    const numericValue = Number(values[index]);
+    if (!Number.isFinite(numericValue)) {
+      continue;
+    }
+
+    points.push({
+      label: formatHourLabel(times[index]),
+      value: Math.round(numericValue)
+    });
+  }
+
+  if (points.length < 6) {
+    return fallbackTrend;
+  }
+
+  return {
+    labels: points.map((point) => point.label),
+    values: points.map((point) => point.value)
+  };
+}
+
+function buildWeeklyRecords(times, values, currentDate, fallbackRecords) {
+  const dailyEntries = buildDailyAverageEntries(times, values)
+    .filter((entry) => entry.date <= currentDate)
+    .slice(-7)
+    .map((entry) => ({
+      date: entry.date,
+      aqi: Math.round(entry.value)
+    }));
+
+  return dailyEntries.length ? dailyEntries : fallbackRecords;
+}
+
+function buildForecastRecords(times, values, currentDate, fallbackRecords) {
+  const dailyEntries = buildDailyAverageEntries(times, values)
+    .filter((entry) => entry.date >= currentDate)
+    .slice(0, 7)
+    .map((entry) => ({
+      date: entry.date,
+      aqi: Math.round(entry.value)
+    }));
+
+  return dailyEntries.length ? dailyEntries : fallbackRecords;
+}
+
+function getPreviousPollutantValue(key, times, values, currentDate, fallbackValue, currentValue) {
+  const previousEntry = buildDailyAverageEntries(times, values)
+    .filter((entry) => entry.date < currentDate)
+    .at(-1);
+
+  if (!previousEntry) {
+    return currentValue ?? fallbackValue;
+  }
+
+  return normalizePollutantValue(key, previousEntry.value);
+}
+
+function getWeatherCondition(code) {
+  const conditions = {
+    0: "Clear sky",
+    1: "Mainly clear",
+    2: "Partly cloudy",
+    3: "Overcast",
+    45: "Fog",
+    48: "Rime fog",
+    51: "Light drizzle",
+    53: "Drizzle",
+    55: "Dense drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    80: "Rain showers",
+    81: "Heavy showers",
+    82: "Intense showers",
+    95: "Thunderstorm"
+  };
+
+  return conditions[code] || "Local conditions";
+}
+
+function getPollutantKeyByLabel(label) {
+  return Object.entries(POLLUTANT_META).find(([, meta]) => meta.label === label)?.[0] || "pm25";
+}
+
+function getPrimaryPollutantKey(current, pollutants, fallbackLabel) {
+  const componentRanking = Object.entries(POLLUTANT_META)
+    .map(([key, meta]) => ({
+      key,
+      score: Number(current?.[meta.componentKey])
+    }))
+    .filter((item) => Number.isFinite(item.score))
+    .sort((left, right) => right.score - left.score);
+
+  if (componentRanking.length) {
+    return componentRanking[0].key;
+  }
+
+  const ratioRanking = Object.entries(POLLUTANT_META)
+    .map(([key, meta]) => ({
+      key,
+      score: (pollutants[key] || 0) / meta.limit
+    }))
+    .sort((left, right) => right.score - left.score);
+
+  if (ratioRanking.length) {
+    return ratioRanking[0].key;
+  }
+
+  return getPollutantKeyByLabel(fallbackLabel);
+}
+
+function buildWeatherSnapshot(weatherResponse, fallbackCity) {
+  const current = weatherResponse?.current;
+  const daily = weatherResponse?.daily;
+
+  return {
+    condition: Number.isFinite(current?.weather_code)
+      ? getWeatherCondition(current.weather_code)
+      : fallbackCity.condition,
+    temp: Number.isFinite(current?.temperature_2m)
+      ? Math.round(current.temperature_2m)
+      : fallbackCity.temp,
+    humidity: Number.isFinite(current?.relative_humidity_2m)
+      ? Math.round(current.relative_humidity_2m)
+      : fallbackCity.humidity,
+    wind: Number.isFinite(current?.wind_speed_10m)
+      ? `${round(current.wind_speed_10m, 1)} km/h`
+      : fallbackCity.wind,
+    uv: Number.isFinite(daily?.uv_index_max?.[0])
+      ? round(daily.uv_index_max[0], 1)
+      : fallbackCity.uv
+  };
+}
+
+function buildWeatherNote(level, pollutantLabel) {
+  return `${pollutantLabel} is the main driver right now. ${level.advice}`;
+}
+
+function buildFallbackDashboardData(text) {
+  const records = parseCsv(text);
+  const dates = getUniqueDates(records);
+  const cityData = {};
+
+  CITY_ORDER.forEach((city, cityIndex) => {
+    const series = records
+      .filter((record) => record.city === city)
+      .sort((left, right) => left.date.localeCompare(right.date));
+    const latestRecord = series[series.length - 1];
+    const previousRecord = series[series.length - 2] || latestRecord;
+    const details = FALLBACK_CITY_DETAILS[city];
+    const latestDate = latestRecord?.date || dates[dates.length - 1];
+    const forecastRecords = details.forecast.map((aqi, index) => {
+      const forecastDate = new Date(`${latestDate}T00:00:00`);
+      forecastDate.setDate(forecastDate.getDate() + index);
+      return {
+        date: forecastDate.toISOString().slice(0, 10),
+        aqi
+      };
+    });
+
+    const pollutantPrevious = Object.fromEntries(
+      Object.keys(POLLUTANT_META).map((key) => {
+        const currentValue = details.pollutants[key];
+        const ratio = latestRecord?.aqi ? (previousRecord?.aqi || latestRecord.aqi) / latestRecord.aqi : 1;
+        const previousValue = key === "co"
+          ? round(currentValue * ratio, 1)
+          : Math.round(currentValue * ratio);
+        return [key, previousValue];
+      })
+    );
+
+    cityData[city] = {
+      city,
+      currentAqi: latestRecord?.aqi || 0,
+      currentTime: `${latestDate}T12:00`,
+      timezone: "Asia/Kolkata",
+      condition: details.condition,
+      temp: details.temp,
+      humidity: details.humidity,
+      wind: details.wind,
+      uv: details.uv,
+      weatherNote: details.weatherNote,
+      primaryPollutant: details.primaryPollutant,
+      pollutants: { ...details.pollutants },
+      pollutantPrevious,
+      weeklyRecords: series.slice(-7),
+      hourlyTrend: {
+        labels: HOURLY_LABELS,
+        values: buildFallbackHourlyTrend(latestRecord?.aqi || 0, cityIndex)
+      },
+      forecastRecords,
+      source: "sample"
+    };
+  });
+
+  return {
+    cityData,
+    latestRecords: CITY_ORDER.map((city) => ({
+      city,
+      aqi: cityData[city].currentAqi
+    })),
+    lastUpdated: `${dates[dates.length - 1]}T12:00`,
+    sourceSummary: "Sample fallback data",
+    liveCount: 0,
+    totalCities: CITY_ORDER.length
+  };
+}
+
+async function fetchCityLiveData(city, fallbackCity) {
+  const config = CITY_CONFIG[city];
+  const [airResult, weatherResult] = await Promise.allSettled([
+    fetchJson(buildAirQualityUrl(config)),
+    fetchJson(buildWeatherUrl(config))
+  ]);
+
+  if (airResult.status !== "fulfilled") {
+    throw airResult.reason;
+  }
+
+  const airResponse = airResult.value;
+  const weatherResponse = weatherResult.status === "fulfilled" ? weatherResult.value : null;
+  const current = airResponse.current || {};
+  const hourly = airResponse.hourly || {};
+  const currentTime = current.time || fallbackCity.currentTime;
+  const currentDate = currentTime.slice(0, 10);
+  const pollutants = {};
+  const pollutantPrevious = {};
+
+  Object.keys(POLLUTANT_META).forEach((key) => {
+    const meta = POLLUTANT_META[key];
+    const currentValue = normalizePollutantValue(key, current[meta.apiKey]);
+    pollutants[key] = currentValue ?? fallbackCity.pollutants[key];
+    pollutantPrevious[key] = getPreviousPollutantValue(
+      key,
+      hourly.time || [],
+      hourly[meta.apiKey] || [],
+      currentDate,
+      fallbackCity.pollutantPrevious[key],
+      pollutants[key]
+    );
+  });
+
+  const currentAqi = Number.isFinite(Number(current.us_aqi))
+    ? Math.round(Number(current.us_aqi))
+    : fallbackCity.currentAqi;
+  const primaryPollutantKey = getPrimaryPollutantKey(current, pollutants, fallbackCity.primaryPollutant);
+  const level = getAqiLevel(currentAqi);
+  const weather = buildWeatherSnapshot(weatherResponse, fallbackCity);
+
+  return {
+    city,
+    currentAqi,
+    currentTime,
+    timezone: airResponse.timezone || weatherResponse?.timezone || fallbackCity.timezone,
+    condition: weather.condition,
+    temp: weather.temp,
+    humidity: weather.humidity,
+    wind: weather.wind,
+    uv: weather.uv,
+    weatherNote: buildWeatherNote(level, POLLUTANT_META[primaryPollutantKey].label),
+    primaryPollutant: POLLUTANT_META[primaryPollutantKey].label,
+    pollutants,
+    pollutantPrevious,
+    weeklyRecords: buildWeeklyRecords(
+      hourly.time || [],
+      hourly.us_aqi || [],
+      currentDate,
+      fallbackCity.weeklyRecords
+    ),
+    hourlyTrend: buildLiveHourlyTrend(
+      hourly.time || [],
+      hourly.us_aqi || [],
+      currentTime,
+      fallbackCity.hourlyTrend
+    ),
+    forecastRecords: buildForecastRecords(
+      hourly.time || [],
+      hourly.us_aqi || [],
+      currentDate,
+      fallbackCity.forecastRecords
+    ),
+    source: "live"
+  };
+}
+
+async function buildDashboardData(fallbackData) {
+  const results = await Promise.allSettled(
+    CITY_ORDER.map((city) => fetchCityLiveData(city, fallbackData.cityData[city]))
+  );
+
+  const cityData = {};
+  let liveCount = 0;
+
+  results.forEach((result, index) => {
+    const city = CITY_ORDER[index];
+
+    if (result.status === "fulfilled") {
+      cityData[city] = result.value;
+      liveCount += 1;
+      return;
+    }
+
+    cityData[city] = fallbackData.cityData[city];
+  });
+
+  const currentTimes = CITY_ORDER
+    .map((city) => cityData[city].currentTime)
+    .filter(Boolean)
+    .sort();
+
+  let sourceSummary = "Sample fallback data";
+  if (liveCount === CITY_ORDER.length) {
+    sourceSummary = "Live AQI via Open-Meteo";
+  } else if (liveCount > 0) {
+    sourceSummary = `Live AQI for ${liveCount}/${CITY_ORDER.length} cities - sample fallback for the rest`;
+  }
+
+  return {
+    cityData,
+    latestRecords: CITY_ORDER.map((city) => ({
+      city,
+      aqi: cityData[city].currentAqi
+    })),
+    lastUpdated: currentTimes[currentTimes.length - 1] || fallbackData.lastUpdated,
+    sourceSummary,
+    liveCount,
+    totalCities: CITY_ORDER.length
+  };
+}
+
 function getSelectedSnapshot() {
-  const city = state.selectedCity;
-  const series = state.data.citySeries[city] || [];
-  const latestRecord = series[series.length - 1];
-  const previousRecord = series[series.length - 2] || latestRecord;
-  const details = CITY_DETAILS[city];
-  const level = getAqiLevel(latestRecord.aqi);
+  const details = state.data.cityData[state.selectedCity];
+  const level = getAqiLevel(details.currentAqi);
   const pollutants = Object.entries(POLLUTANT_META).map(([key, meta]) => {
     const current = details.pollutants[key];
-    const previousValue = latestRecord.aqi ? current * (previousRecord.aqi / latestRecord.aqi) : current;
-    const previous = meta.unit === "mg/m3" ? round(previousValue, 1) : Math.round(previousValue);
+    const previous = details.pollutantPrevious[key] || current;
     const change = previous ? ((current - previous) / previous) * 100 : 0;
     const percent = Math.round((current / meta.limit) * 100);
     const status = getLimitStatus(percent);
@@ -463,18 +953,37 @@ function getSelectedSnapshot() {
   });
 
   return {
-    city,
+    city: state.selectedCity,
     details,
     level,
-    latestRecord,
+    latestRecord: { aqi: details.currentAqi },
     pollutants,
-    hourlyTrend: buildHourlyTrend(latestRecord.aqi, CITY_ORDER.indexOf(city)),
-    weeklyTrend: series.map((record) => record.aqi)
+    hourlyTrend: details.hourlyTrend.values,
+    hourlyLabels: details.hourlyTrend.labels,
+    weeklyTrend: details.weeklyRecords.map((record) => record.aqi),
+    weeklyLabels: details.weeklyRecords.map((record) => formatDay(record.date)),
+    forecastRecords: details.forecastRecords
   };
 }
 
 function renderLastUpdated() {
-  document.getElementById("last-updated").textContent = formatLastUpdated(new Date());
+  document.getElementById("last-updated").textContent = `Last Updated: ${formatDateTime(state.data.lastUpdated)} | ${state.data.sourceSummary}`;
+}
+
+function renderRefreshLabel() {
+  const label = document.querySelector("#refresh-button span:last-child");
+
+  if (state.data.liveCount === state.data.totalCities) {
+    label.textContent = "Live - Updated now";
+    return;
+  }
+
+  if (state.data.liveCount > 0) {
+    label.textContent = "Live + fallback data";
+    return;
+  }
+
+  label.textContent = "Sample fallback data";
 }
 
 function renderCityTabs() {
@@ -572,14 +1081,18 @@ function renderPollutantMetrics(snapshot) {
   container.innerHTML = snapshot.pollutants.map((item) => `
     <article class="pollutant-card" style="--card-accent:${item.status.color}">
       <p class="pollutant-name">${item.label}</p>
-      <p class="pollutant-reading">${item.current}<span> ${item.unit}</span></p>
-      <p class="pollutant-limit">WHO limit: ${item.limit} ${item.unit}</p>
+      <p class="pollutant-reading">${formatValue(item.current, item.displayDecimals || 0)}<span> ${item.unit}</span></p>
+      <p class="pollutant-limit">WHO limit: ${formatValue(item.limit, item.displayDecimals || 0)} ${item.unit}</p>
       <p class="pollutant-change"><strong>${formatSignedChange(item.change)}</strong> vs yesterday</p>
     </article>
   `).join("");
 }
 
 function buildLineChartSvg(values, labels, color) {
+  if (!values.length) {
+    return '<p class="panel-subtitle">Live trend data is unavailable right now.</p>';
+  }
+
   const width = 980;
   const height = 360;
   const padding = { top: 20, right: 16, bottom: 48, left: 52 };
@@ -633,6 +1146,10 @@ function buildLineChartSvg(values, labels, color) {
 }
 
 function buildBarChartSvg(values, labels, color) {
+  if (!values.length) {
+    return '<p class="panel-subtitle">Daily AQI data is unavailable right now.</p>';
+  }
+
   const width = 520;
   const height = 360;
   const padding = { top: 16, right: 16, bottom: 54, left: 46 };
@@ -673,6 +1190,10 @@ function buildBarChartSvg(values, labels, color) {
 }
 
 function buildWhoChartSvg(items) {
+  if (!items.length) {
+    return '<p class="panel-subtitle">Pollutant comparison data is unavailable right now.</p>';
+  }
+
   const width = 1180;
   const height = 320;
   const padding = { top: 20, right: 16, bottom: 58, left: 52 };
@@ -722,13 +1243,13 @@ function buildWhoChartSvg(items) {
 function renderCharts(snapshot) {
   document.getElementById("hourly-chart").innerHTML = buildLineChartSvg(
     snapshot.hourlyTrend,
-    HOURLY_LABELS,
+    snapshot.hourlyLabels,
     snapshot.level.color
   );
 
   document.getElementById("weekly-chart").innerHTML = buildBarChartSvg(
     snapshot.weeklyTrend,
-    state.data.citySeries[snapshot.city].map((record) => formatDay(record.date)),
+    snapshot.weeklyLabels,
     "#1f5e9c"
   );
 
@@ -778,9 +1299,9 @@ function renderPollutantTable(snapshot) {
         <div class="pollutant-description">${item.description}</div>
       </td>
       <td>
-        <span class="value-chip" style="color:${item.status.color};">${item.current} ${item.unit}</span>
+        <span class="value-chip" style="color:${item.status.color};">${formatValue(item.current, item.displayDecimals || 0)} ${item.unit}</span>
       </td>
-      <td>${item.limit} ${item.unit}</td>
+      <td>${formatValue(item.limit, item.displayDecimals || 0)} ${item.unit}</td>
       <td>
         <span class="status-chip" style="--chip-bg:${item.status.bg}; --chip-color:${item.status.color};">${item.status.label}</span>
       </td>
@@ -812,17 +1333,17 @@ function renderCityComparison() {
 }
 
 function renderForecast(snapshot) {
-  const startDate = new Date(`${state.data.latestDate}T00:00:00`);
-  document.getElementById("forecast-grid").innerHTML = snapshot.details.forecast.map((value, index) => {
-    const forecastDate = new Date(startDate);
-    forecastDate.setDate(startDate.getDate() + index);
-    const level = getAqiLevel(value);
-    const isPeak = value === Math.max(...snapshot.details.forecast);
+  const values = snapshot.forecastRecords;
+  const peakValue = Math.max(...values.map((record) => record.aqi));
+
+  document.getElementById("forecast-grid").innerHTML = values.map((record) => {
+    const level = getAqiLevel(record.aqi);
+    const isPeak = record.aqi === peakValue;
     return `
       <article class="forecast-card ${isPeak ? "peak" : ""}">
-        <span class="forecast-day">${forecastDate.toLocaleDateString("en-IN", { weekday: "short" }).toUpperCase()}</span>
-        <span class="forecast-icon">${value >= 300 ? "ALRT" : "AQI"}</span>
-        <p class="forecast-value" style="color:${level.color};">${value}</p>
+        <span class="forecast-day">${formatDay(record.date).toUpperCase()}</span>
+        <span class="forecast-icon">${record.aqi >= 300 ? "ALRT" : "AQI"}</span>
+        <p class="forecast-value" style="color:${level.color};">${record.aqi}</p>
         <span class="forecast-label">${level.shortLabel}</span>
       </article>
     `;
@@ -846,6 +1367,7 @@ function renderAll() {
 
   const snapshot = getSelectedSnapshot();
   renderLastUpdated();
+  renderRefreshLabel();
   renderCityTabs();
   renderHero(snapshot);
   renderPollutantMetrics(snapshot);
@@ -857,18 +1379,29 @@ function renderAll() {
 }
 
 async function refreshData() {
-  state.csvText = await loadCsvText();
-  state.data = buildDashboardData(parseCsv(state.csvText));
+  const fallbackText = await loadFallbackCsvText();
+  const fallbackData = buildFallbackDashboardData(fallbackText);
+
+  try {
+    state.data = await buildDashboardData(fallbackData);
+  } catch (error) {
+    console.error("Live AQI refresh failed. Showing fallback data instead.", error);
+    state.data = {
+      ...fallbackData,
+      sourceSummary: "Live API unavailable - showing sample fallback data"
+    };
+  }
+
   renderAll();
 }
 
 function attachEvents() {
   document.getElementById("refresh-button").addEventListener("click", async () => {
     const button = document.getElementById("refresh-button");
+    const label = button.querySelector("span:last-child");
     button.disabled = true;
-    button.querySelector("span:last-child").textContent = "Refreshing...";
+    label.textContent = "Refreshing...";
     await refreshData();
-    button.querySelector("span:last-child").textContent = "Live - Updated now";
     button.disabled = false;
   });
 

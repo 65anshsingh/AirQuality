@@ -4,19 +4,19 @@ This is a simplified dashboard project built with HTML, CSS, and JavaScript.
 
 ## Step-by-step workflow
 
-1. Store pre-collected AQI data in `data/aqi_data.csv`.
-2. Read the CSV in `script.js`.
-3. Convert the raw rows into usable JavaScript objects.
-4. Calculate daily averages, pollutant averages, and highest-risk cities.
-5. Show the results using summary cards, a trend chart, and a table.
+1. Request live air-quality data from the Open-Meteo Air Quality API for each tracked city.
+2. Request current weather support data from the Open-Meteo Forecast API.
+3. Convert the API responses into AQI trends, pollutant cards, forecast values, and comparison summaries.
+4. Fall back to the local sample CSV in `data/aqi_data.csv` if live requests fail.
+5. Show the results using summary cards, trend charts, the AQI scale, and the pollutant table.
 6. Add AQI health descriptions so users understand the meaning of each level.
 
 ## Project files
 
 - `index.html` builds the page structure.
 - `styles.css` controls the visual design and responsive layout.
-- `script.js` loads the CSV, processes the data, and renders the dashboard.
-- `data/aqi_data.csv` contains the sample air pollution data.
+- `script.js` loads live AQI data, processes it, and renders the dashboard.
+- `data/aqi_data.csv` contains sample fallback data used when live API requests are unavailable.
 
 ## Run locally
 
