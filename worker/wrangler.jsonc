@@ -1,0 +1,9 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "airwatch-aqi-proxy",
+  "main": "src/index.js",
+  "compatibility_date": "2026-05-07",
+  "vars": {
+    "FRONTEND_ORIGIN": "https://65anshsingh.github.io"
+  }
+}

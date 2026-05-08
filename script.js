@@ -53,17 +53,8 @@ const CITY_CONFIG = {
   Chennai: { latitude: "13.0827", longitude: "80.2707" }
 };
 
-const AIR_QUALITY_API_URL = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const OFFICIAL_AQI_PROXY_URL = "https://airwatch-aqi-proxy.anshsingh.workers.dev";
 const WEATHER_API_URL = "https://api.open-meteo.com/v1/forecast";
-
-const AIR_QUALITY_FIELDS = [
-  "pm2_5",
-  "pm10",
-  "carbon_monoxide",
-  "nitrogen_dioxide",
-  "sulphur_dioxide",
-  "ozone"
-];
 
 const WEATHER_CURRENT_FIELDS = [
   "temperature_2m",
@@ -128,6 +119,7 @@ const AQI_LEVELS = [
 const POLLUTANT_META = {
   pm25: {
     apiKey: "pm2_5",
+    officialKey: "PM2.5",
     label: "PM2.5",
     description: "Fine particles (< 2.5 um)",
     limit: 35,
@@ -138,6 +130,7 @@ const POLLUTANT_META = {
   },
   pm10: {
     apiKey: "pm10",
+    officialKey: "PM10",
     label: "PM10",
     description: "Coarse particles (< 10 um)",
     limit: 150,
@@ -148,6 +141,7 @@ const POLLUTANT_META = {
   },
   no2: {
     apiKey: "nitrogen_dioxide",
+    officialKey: "NO2",
     label: "NO2",
     description: "Nitrogen dioxide",
     limit: 40,
@@ -158,6 +152,7 @@ const POLLUTANT_META = {
   },
   o3: {
     apiKey: "ozone",
+    officialKey: "OZONE",
     label: "Ozone",
     description: "Ground-level ozone",
     limit: 100,
@@ -168,6 +163,7 @@ const POLLUTANT_META = {
   },
   co: {
     apiKey: "carbon_monoxide",
+    officialKey: "CO",
     label: "CO",
     description: "Carbon monoxide",
     limit: 10,
@@ -181,6 +177,7 @@ const POLLUTANT_META = {
   },
   so2: {
     apiKey: "sulphur_dioxide",
+    officialKey: "SO2",
     label: "SO2",
     description: "Sulfur dioxide",
     limit: 20,
@@ -453,6 +450,11 @@ async function fetchJson(url) {
   return response.json();
 }
 
+async function fetchOfficialCityData(city) {
+  const url = `${OFFICIAL_AQI_PROXY_URL}/aqi?city=${encodeURIComponent(city)}`;
+  return fetchJson(url);
+}
+
 function parseCsv(text) {
   const [headerLine, ...rows] = text.trim().split(/\r?\n/);
   const headers = headerLine.split(",");
@@ -550,20 +552,6 @@ function buildFallbackHourlyTrend(aqi, cityIndex) {
   });
 }
 
-function buildAirQualityUrl(config) {
-  const params = new URLSearchParams({
-    latitude: config.latitude,
-    longitude: config.longitude,
-    current: AIR_QUALITY_FIELDS.join(","),
-    hourly: AIR_QUALITY_FIELDS.join(","),
-    past_days: "6",
-    forecast_days: "7",
-    timezone: "auto"
-  });
-
-  return `${AIR_QUALITY_API_URL}?${params.toString()}`;
-}
-
 function buildWeatherUrl(config) {
   const params = new URLSearchParams({
     latitude: config.latitude,
@@ -590,6 +578,22 @@ function normalizePollutantValue(key, rawValue) {
     : numericValue;
 
   return round(transformedValue, meta.displayDecimals || 0);
+}
+
+function normalizeOfficialTimestamp(rawValue) {
+  const match = String(rawValue || "").match(/^(\d{2})-(\d{2})-(\d{4}) (\d{2}):(\d{2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+
+  const [, day, month, year, hour, minute, second] = match;
+  return `${year}-${month}-${day}T${hour}:${minute}:${second}`;
+}
+
+function getOfficialPollutantAverage(summary, key) {
+  const meta = POLLUTANT_META[key];
+  const rawValue = summary?.pollutants?.[meta.officialKey]?.avg;
+  return normalizePollutantValue(key, rawValue);
 }
 
 function buildDailyAverageEntries(times, values) {
@@ -942,49 +946,39 @@ function buildFallbackDashboardData(text) {
 
 async function fetchCityLiveData(city, fallbackCity) {
   const config = CITY_CONFIG[city];
-  const [airResult, weatherResult] = await Promise.allSettled([
-    fetchJson(buildAirQualityUrl(config)),
+  const [officialResult, weatherResult] = await Promise.allSettled([
+    fetchOfficialCityData(city),
     fetchJson(buildWeatherUrl(config))
   ]);
 
-  if (airResult.status !== "fulfilled") {
-    throw airResult.reason;
+  if (officialResult.status !== "fulfilled") {
+    throw officialResult.reason;
   }
 
-  const airResponse = airResult.value;
+  const officialResponse = officialResult.value;
   const weatherResponse = weatherResult.status === "fulfilled" ? weatherResult.value : null;
-  const current = airResponse.current || {};
-  const hourly = airResponse.hourly || {};
-  const aqiSeries = buildIndiaAqiSeries(hourly);
-  const currentTime = current.time || fallbackCity.currentTime;
+  const summary = officialResponse.summary || {};
+  const latestRecord = officialResponse.latestRecords?.[0] || null;
+  const currentTime = normalizeOfficialTimestamp(latestRecord?.lastUpdateRaw)
+    || normalizeOfficialTimestamp(summary.lastUpdateRaw)
+    || officialResponse.fetchedAt
+    || fallbackCity.currentTime;
   const currentDate = currentTime.slice(0, 10);
-  const currentAqiIndex = findCurrentIndex(
-    aqiSeries.map((point) => point.time),
-    currentTime
-  );
-  const currentAqiPoint = aqiSeries[currentAqiIndex] || null;
   const pollutants = {};
   const pollutantPrevious = {};
 
   Object.keys(POLLUTANT_META).forEach((key) => {
-    const meta = POLLUTANT_META[key];
-    const currentValue = normalizePollutantValue(key, current[meta.apiKey]);
+    const currentValue = getOfficialPollutantAverage(summary, key);
     pollutants[key] = currentValue ?? fallbackCity.pollutants[key];
-    pollutantPrevious[key] = getPreviousPollutantValue(
-      key,
-      hourly.time || [],
-      hourly[meta.apiKey] || [],
-      currentDate,
-      fallbackCity.pollutantPrevious[key],
-      pollutants[key]
-    );
+    pollutantPrevious[key] = pollutants[key];
   });
 
-  const currentAqi = Number.isFinite(currentAqiPoint?.aqi)
-    ? Math.round(currentAqiPoint.aqi)
+  const aqiData = computeIndiaAqi(pollutants);
+  const currentAqi = Number.isFinite(aqiData?.aqi)
+    ? Math.round(aqiData.aqi)
     : fallbackCity.currentAqi;
   const primaryPollutantKey = getPrimaryPollutantKey(
-    currentAqiPoint?.subIndices,
+    aqiData?.subIndices,
     fallbackCity.primaryPollutant
   );
   const level = getAqiLevel(currentAqi);
@@ -994,7 +988,7 @@ async function fetchCityLiveData(city, fallbackCity) {
     city,
     currentAqi,
     currentTime,
-    timezone: airResponse.timezone || weatherResponse?.timezone || fallbackCity.timezone,
+    timezone: weatherResponse?.timezone || fallbackCity.timezone,
     condition: weather.condition,
     temp: weather.temp,
     humidity: weather.humidity,
@@ -1004,22 +998,11 @@ async function fetchCityLiveData(city, fallbackCity) {
     primaryPollutant: POLLUTANT_META[primaryPollutantKey].label,
     pollutants,
     pollutantPrevious,
-    weeklyRecords: buildWeeklyRecords(
-      aqiSeries,
-      currentDate,
-      fallbackCity.weeklyRecords
-    ),
-    hourlyTrend: buildLiveHourlyTrend(
-      aqiSeries,
-      currentTime,
-      fallbackCity.hourlyTrend
-    ),
-    forecastRecords: buildForecastRecords(
-      aqiSeries,
-      currentDate,
-      fallbackCity.forecastRecords
-    ),
-    source: "live"
+    weeklyRecords: fallbackCity.weeklyRecords,
+    hourlyTrend: fallbackCity.hourlyTrend,
+    forecastRecords: fallbackCity.forecastRecords,
+    source: "official",
+    sourceStationCount: summary.stations?.length || 0
   };
 }
 
@@ -1050,9 +1033,9 @@ async function buildDashboardData(fallbackData) {
 
   let sourceSummary = "Sample fallback data";
   if (liveCount === CITY_ORDER.length) {
-    sourceSummary = "Approx Indian AQI computed from Open-Meteo pollutant data";
+    sourceSummary = "Official real-time AQI from data.gov.in for current city snapshots | trend and forecast panels use sample fallback";
   } else if (liveCount > 0) {
-    sourceSummary = `Approx Indian AQI for ${liveCount}/${CITY_ORDER.length} cities - sample fallback for the rest`;
+    sourceSummary = `Official real-time AQI for ${liveCount}/${CITY_ORDER.length} cities | sample fallback used elsewhere`;
   }
 
   return {
@@ -1111,7 +1094,7 @@ function renderRefreshLabel() {
   const label = document.querySelector("#refresh-button span:last-child");
 
   if (state.data.liveCount === state.data.totalCities) {
-    label.textContent = "Live - Updated now";
+    label.textContent = "Official live AQI";
     return;
   }
 
@@ -1522,10 +1505,10 @@ async function refreshData() {
   try {
     state.data = await buildDashboardData(fallbackData);
   } catch (error) {
-    console.error("Live AQI refresh failed. Showing fallback data instead.", error);
+    console.error("Official AQI refresh failed. Showing fallback data instead.", error);
     state.data = {
       ...fallbackData,
-      sourceSummary: "Live API unavailable - showing sample fallback data on the Indian AQI scale"
+      sourceSummary: "Official AQI proxy unavailable - showing sample fallback data on the Indian AQI scale"
     };
   }
 

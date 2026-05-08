@@ -75,7 +75,7 @@
           <div class="panel-heading">
             <div>
               <h2>24-hour AQI trend</h2>
-              <p class="panel-subtitle">Hourly air quality movement for the selected city</p>
+              <p class="panel-subtitle">Fallback trend preview until official hourly history is connected</p>
             </div>
           </div>
           <div id="hourly-chart" class="chart-host chart-host-tall" aria-label="Hourly AQI chart"></div>
@@ -85,7 +85,7 @@
           <div class="panel-heading">
             <div>
               <h2>Weekly overview</h2>
-              <p class="panel-subtitle">Daily AQI over the past 7 days</p>
+              <p class="panel-subtitle">Sample 7-day view used until official historical series is connected</p>
             </div>
           </div>
           <div id="weekly-chart" class="chart-host chart-host-tall" aria-label="Weekly AQI chart"></div>
@@ -161,7 +161,7 @@
             <p class="section-kicker">7-day AQI forecast</p>
             <h2>Model-based projection</h2>
           </div>
-          <p class="panel-note">Outlook for the selected city</p>
+          <p class="panel-note">Sample outlook placeholder</p>
         </div>
         <div id="forecast-grid" class="forecast-grid"></div>
       </section>
@@ -176,7 +176,7 @@
     </main>
 
     <footer class="site-footer">
-      <p class="footer-copy">Copyright 2026 AirWatch - Air Quality Awareness Platform - Data sources: Open-Meteo Air Quality API, Open-Meteo Forecast API, CPCB AQI methodology, WHO guidance, sample fallback CSV</p>
+      <p class="footer-copy">Copyright 2026 AirWatch - Air Quality Awareness Platform - Data sources: data.gov.in real-time AQI via Cloudflare Worker, Open-Meteo weather API, WHO guidance, sample fallback CSV</p>
       <div class="footer-links">
         <a href="#metrics-section">About</a>
         <a href="#trends-section">Methodology</a>
